@@ -19,11 +19,17 @@ $ gcloud container clusters create gke-1 \
 ```
 
 
-## Multi-cluster environment (basic)
+## Multi-cluster environment 
 
-The multi-cluster examples use the following GKE setup for deploying the manifests. If you've already created `gke-1` in the [single-cluster section](#), you can reuse that cluster.
+1. Deploy two GKE clusters within you Google Cloud project.
 
-1. Deploy two GKE clusters within your Google Cloud project.
+Depending which recipe you are following, pick the GKE cluster configuration you want below.
+
+##### Second cluster for basic recipe
+
+The basic multi-cluster examples use the following GKE setup for deploying the manifests. If you've already created `gke-1` in the [single-cluster section](#), you can reuse that cluster.
+
+Deploy two GKE clusters within your Google Cloud project.
 
     ```bash
     $ gcloud container clusters create gke-1 \
@@ -35,6 +41,49 @@ The multi-cluster examples use the following GKE setup for deploying the manifes
       --zone us-east1-b \
       --enable-ip-alias \
       --release-channel rapid 
+    ```
+
+##### Second clusters for Peered VPC recipe
+
+The Peered VPC multi-cluster examples use the following GKE setup for deploying the manifests. If you've already created `gke-1` in the [single-cluster section](#), you can reuse that cluster.
+
+
+    ```bash
+
+    # set up the Peered VPCs
+    # the second VPC's subnet ranges are selected not to conflict with the default network
+
+    $ gcloud compute networks create second-vpc --project=${PROJECT} --subnet-mode=custom --mtu=1460 --bgp-routing-mode=global
+  
+    $ gcloud compute networks subnets create us-west1-a --project=${PROJECT} --range=172.16.0.0/24 --network=second-vpc --region=us-west1
+
+    $ gcloud compute networks subnets create us-east1-b --project=${PROJECT} --range=172.16.1.0/24 --network=second-vpc --region=us-east1
+
+    $ gcloud compute networks peerings create gke-mcs-peered-vpc-recipe-connection-1 \
+      --network=second-vpc \
+      --peer-project ${PROJECT} \
+      --peer-network default
+
+    $ gcloud compute networks peerings create gke-mcs-peered-vpc-recipe-connection-2 \
+      --network=default \
+      --peer-project ${PROJECT} \
+      --peer-network second-vpc
+
+    # Create the two clusters, one using the second VPC
+
+    $ gcloud container clusters create gke-1 \
+      --zone us-west1-a \
+      --enable-ip-alias \
+      --release-channel rapid \
+      --workload-pool=${PROJECT}.svc.id.goog
+
+    $ gcloud container clusters create gke-2 \
+      --zone us-east1-b \
+      --enable-ip-alias \
+      --release-channel rapid \
+      --network=second-vpc \
+      --subnetwork us-east1-b \
+      --workload-pool=${PROJECT}.svc.id.goog
     ```
 
 2. Rename contexts
@@ -80,6 +129,8 @@ The multi-cluster examples use the following GKE setup for deploying the manifes
 
 5. Now enable Multi-cluster Ingress and specify `gke-1` as your config cluster.
 
+  > TODO: No reference of enabling MCS or MCS dependent apis
+
     ```bash
     $ gcloud alpha container hub ingress enable \
       --config-membership=projects/${PROJECT}/locations/global/memberships/gke-1
@@ -106,6 +157,8 @@ The multi-cluster examples use the following GKE setup for deploying the manifes
     ```
 
 ## Multi-cluster environment (blue-green cluster)
+
+> TODO - should this move up, or should the setup steps for second cluster move out
 
 To implement the `multi-cluster-blue-green-cluster` pattern, we need another GKE cluster in the same region as `gke-1`. This section builds on the [previous section](#multi-cluster-environment-basic), and assumes you still have those clusters up and running.
 
